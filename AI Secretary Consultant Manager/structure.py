@@ -11,8 +11,13 @@ from sklearn.metrics.pairwise import cosine_similarity
 import email
 import imaplib
 
+# Section 0: Structure and Overview
+# Team Member: Affaan [Project Manager | Data Engineer]
+
 # Section 1: GPTPlugin and MainModule Classes 
-# Team Member: Haley [Base Code Engineer]
+# Team Member: Haley [Base Code Engineer], Ru [API Engineer]
+
+# GPTPlugin - Ru [API Engineer]
 
 class GPTPlugin:
     def __init__(self, config):
@@ -88,6 +93,7 @@ gpt_plugin = GPTPlugin(config=example_config)
 response = gpt_plugin.process_request({'type': 'create_trello_task', 'details': {'email': 'example_email_content'}})
 print(response)  # Output depends on the request processing logic
 
+# MainModule - Haley [Base Code Engineer]
 
 class MainModule:
     def __init__(self, config):
@@ -155,6 +161,8 @@ if __name__ == "__main__":
 # Section 2: Agent and Exporter Classes
 # Team Member: Ru [API Engineer], Aria [Systems Engineer]
 
+# Agents - Aria [Systems Engineer]
+
 from trello import TrelloClient
 
 class TrelloAgent:
@@ -192,6 +200,33 @@ class GoogleTasksAgent:
         result = self.service.tasks().update(tasklist=self.tasklist_id, task=task_id, body=kwargs).execute()
         return result
     
+class SecretaryAgent:
+    def __init__(self, langchain_model="gpt-4", redis_config=None, google_credentials_path=None):
+        self.redis_storage = self.init_redis_storage(redis_config)
+        self.init_langchain(langchain_model)
+        self.google_credentials_path = google_credentials_path
+
+    def init_redis_storage(self, config):
+        return RedisResultsStorage(**config)
+
+    def init_langchain(self, model_name):
+        # Initialize LangChain components with the given model
+        pass
+
+    def task_creation_agent(self, task_description: str):
+        # Logic to create a task (e.g., schedule a meeting)
+        pass
+
+    def authenticate_google_services(self):
+        # Logic to authenticate Google services
+        pass
+
+    def perform_actions(self, response):
+        # Process the response and perform the necessary actions
+        pass
+
+# Exporters - Ru [API Engineer]
+    
 class MeetingScheduler:
     def __init__(self):
         # Initialize templates and settings for scheduling meetings
@@ -220,32 +255,6 @@ class EmailHandler:
         # Extract email details from text and send emails
         pass
 
-class SecretaryAgent:
-    def __init__(self, langchain_model="gpt-4", redis_config=None, google_credentials_path=None):
-        self.redis_storage = self.init_redis_storage(redis_config)
-        self.init_langchain(langchain_model)
-        self.google_credentials_path = google_credentials_path
-
-    def init_redis_storage(self, config):
-        return RedisResultsStorage(**config)
-
-    def init_langchain(self, model_name):
-        # Initialize LangChain components with the given model
-        pass
-
-    def task_creation_agent(self, task_description: str):
-        # Logic to create a task (e.g., schedule a meeting)
-        pass
-
-    def authenticate_google_services(self):
-        # Logic to authenticate Google services
-        pass
-
-    def perform_actions(self, response):
-        # Process the response and perform the necessary actions
-        pass
-
-
 from googleapiclient.discovery import build
 import email
 import imaplib
@@ -271,7 +280,15 @@ class CalendarExporter:
             self.service.events().insert(calendarId='primary', body=event).execute()
 
 # Section 3: Chains, Parsing, Prompting, Databases, Selectors and Structure
-# Team Members: Aria [Systems Engineer], Affaan [Project Manager | Data Engineer]
+# Team Members: Aria [Systems Engineer], Affaan [Project Manager | Data Engineer], Haley [Base Code Engineer]
+
+# Prompting - Affaan [Project Manager | Data Engineer]
+
+import redis
+import json
+import re
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 class RedisResultsStorage:
     def __init__(self, host='localhost', port=6379, db=0):
@@ -283,36 +300,23 @@ class RedisResultsStorage:
     def get_result(self, key):
         return self.client.get(key)
 
-# Defining Custom Prompt Templates and Partial Prompt Templates
-schedule_meeting_template = "Schedule a meeting with {participants} on {date} at {time} in {location}."
-date_time_template = "Date: {date}, Time: {time}"
+# Custom Prompt Templates
+function_explainer_template = FunctionExplainerPromptTemplate(input_variables=["function_name"])
+chat_template = ChatPromptTemplate.from_messages([
+    ("system", "You are a helpful AI bot named Bob."),
+    ("human", "Hello, how are you doing?"),
+    ("ai", "I'm doing well, thanks!"),
+    ("human", "{user_input}"),
+])
 
-# Function for Composition: Constructing Prompts from Parameters
-def compose_meeting_prompt(participants, date, time, location):
-    return schedule_meeting_template.format(participants=participants, date=date, time=time, location=location)
-
-# Function for Serialization: Converting Prompt to a Serializable Format
-def serialize_prompt(prompt, metadata=None):
-    return {
-        'prompt': prompt,
-        'metadata': metadata or {}
-    }
-
-# Function for Prompt Pipelining: Processing a List of Prompts in Sequence
-def process_prompt_pipeline(prompts):
-    results = []
-    for prompt_data in prompts:
-        prompt = prompt_data['prompt']
-        metadata = prompt_data['metadata']
-        result = f"Processed: {prompt}"
-        results.append({
-            'result': result,
-            'metadata': metadata
-        })
-    return results
-
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
+# Examples for dynamic few-shot prompting
+examples = [
+    "Schedule a meeting with {participants} on {date} at {time} in {location}.",
+    "Create a Trello task at {board} with description {description} with title {title} with tags {tags}.",
+    "Add meeting to calendar at {date} and {time}.",
+    "Email participant with subject {subject} message {message}.",
+    # Add more examples as needed
+]
 
 # Example Selector Class
 class ExampleSelector:
@@ -339,8 +343,6 @@ def generate_response(query, examples):
     response = invoke_llm(composed_prompt)
     return response
 
-import re
-
 # Input Parser: Meeting Request
 def parse_meeting_request(input_text):
     participants_pattern = r"meeting with ([\w\s,]+)"
@@ -363,6 +365,56 @@ def format_meeting_confirmation(raw_response):
     confirmation = raw_response.replace("Generated response for:", "Meeting scheduled:")
     return confirmation
 
+# Function for Composition: Constructing Prompts from Parameters
+def compose_meeting_prompt(participants, date, time, location):
+    template = "Schedule a meeting with {participants} on {date} at {time} in {location}."
+    return template.format(participants=participants, date=date, time=time, location=location)
+
+# Serialization: Converting Prompt to a Serializable Format
+def serialize_prompt(prompt, metadata=None):
+    return json.dumps({
+        'prompt': prompt,
+        'metadata': metadata or {}
+    })
+
+# Function for Prompt Pipelining
+def process_prompt_pipeline(prompts, redis_storage):
+    results = []
+    for prompt_data in prompts:
+        prompt_json = json.loads(prompt_data)
+        prompt = prompt_json['prompt']
+        metadata = prompt_json['metadata']
+        result = ""
+
+        if metadata.get('type') == 'meeting_request':
+            meeting_data = parse_meeting_request(prompt)
+            query = compose_meeting_prompt(**meeting_data)
+            result = generate_response(query, examples)
+            result = format_meeting_confirmation(result)
+        # Add other conditions for handling different types of prompts
+        else:
+            result = "Processed for other types."
+
+        # Store the result in Redis
+        key = metadata.get('key')
+        redis_storage.store_result(key, result)
+
+        results.append({
+            'result': result,
+            'metadata': metadata
+        })
+    return results
+
+# Usage
+prompts = [
+    # Add serialized prompts here
+]
+redis_storage = RedisResultsStorage()
+results = process_prompt_pipeline(prompts, redis_storage)
+
+
+# Chains - Aria [Systems Engineer], Haley [Base Code Engineer]
+
 # Placeholder class for Chains
 class Chain:
     def __init__(self, agents, memory=None, callbacks=None):
@@ -374,6 +426,8 @@ class Chain:
         for agent in self.agents:
             input_data = agent.process(input_data, self.memory)
         return input_data
+    
+# Agents - Aria [Systems Engineer]
 
 # Placeholder class for Agents
 class Agent: 
