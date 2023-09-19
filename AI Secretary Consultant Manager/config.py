@@ -8,20 +8,23 @@ CONFIG = {
         "password": "moht0ktXdXVjFHzh9zvSbhieYJ7CKKzdYAzCaCkoaTg="
     },
     "database": {
-        "name": "your-database-name",
-        "user": "your-database-user",
-        "password": "your-database-password",
-        "host": "your-database-host",
-        "port": "your-database-port"
+        "name": "dcube",
+        "user": "dcube",
+        "password": "D33Cub3d!",
+        "host": "dcube.database.windows.net",
+        "port": "1433"
     },
     "openai": {
         "api_key": "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"
     },
     "email": {
-        "generic_email_credentials": {
-            "username": "generic-email-username",
-            "password": "generic-email-password",
-        }
+    "smtp": {
+        "server": "smtp.your-email-provider.com",
+        "port": 587,  # Commonly used port for SMTP
+        "username": "your-email-username",
+        "password": "your-email-password",
+    }
+
     },
     "google_api": {
         "calendar": {

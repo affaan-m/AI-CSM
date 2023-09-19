@@ -5,8 +5,6 @@ from pydoc import pager
 import openai
 import redis
 from googleapiclient.discovery import build
-from trello import TrelloClient
-import re
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import email
@@ -159,75 +157,9 @@ if __name__ == "__main__":
     app = MainModule(config_file)
     app.run()
 
-# Section 2: Agent and Exporter Classes
-# Team Member: Ru [API Engineer], Aria [Systems Engineer]
+# Section 2: Exporter Classes
+# Team Member: Ru [API Engineer]
 
-# Agents - Aria [Systems Engineer]
-
-from trello import TrelloClient
-
-class TrelloAgent:
-    def __init__(self, api_key, board_id):
-        self.client = TrelloClient(api_key=api_key)
-        self.board = self.client.get_board(board_id)
-
-    def create_trello_task(self, task_name, description, due_date=None):
-        # Create task in a specific list
-        task_list = self.board.get_list('To-Do')
-        task = task_list.add_card(name=task_name, desc=description, due=due_date)
-        return task
-
-    def update_trello_task(self, task_id, **kwargs):
-        # Update task with given attributes
-        task = self.board.get_card(task_id)
-        task.set_attr(**kwargs)
-
-from googleapiclient.discovery import build
-
-class GoogleTasksAgent:
-    def __init__(self, credentials_path, tasklist_id):
-        credentials = self.load_credentials(credentials_path)
-        self.service = build('tasks', 'v1', credentials=credentials)
-        self.tasklist_id = tasklist_id
-
-    def create_google_task(self, title, notes, due_date=None):
-        # Create task
-        task = {'title': title, 'notes': notes, 'due': due_date}
-        result = self.service.tasks().insert(tasklist=self.tasklist_id, body=task).execute()
-        return result
-
-    def update_google_task(self, task_id, **kwargs):
-        # Update task
-        result = self.service.tasks().update(tasklist=self.tasklist_id, task=task_id, body=kwargs).execute()
-        return result
-    
-class SecretaryAgent:
-    def __init__(self, langchain_model="gpt-4", redis_config=None, google_credentials_path=None):
-        self.redis_storage = self.init_redis_storage(redis_config)
-        self.init_langchain(langchain_model)
-        self.google_credentials_path = google_credentials_path
-
-    def init_redis_storage(self, config):
-        return RedisResultsStorage(**config)
-
-    def init_langchain(self, model_name):
-        # Initialize LangChain components with the given model
-        pass
-
-    def task_creation_agent(self, task_description: str):
-        # Logic to create a task (e.g., schedule a meeting)
-        pass
-
-    def authenticate_google_services(self):
-        # Logic to authenticate Google services
-        pass
-
-    def perform_actions(self, response):
-        # Process the response and perform the necessary actions
-        pass
-
-# Exporters - Ru [API Engineer]
-    
 class MeetingScheduler:
     def __init__(self):
         # Initialize templates and settings for scheduling meetings
@@ -237,34 +169,66 @@ class MeetingScheduler:
         # Extract details from text and schedule meetings
         pass
 
-import openai
-
-class OpenAIIntegration:
-    def __init__(self, api_key):
-        openai.api_key = api_key
-
-    def process_prompt(self, prompt):
-        # Process the prompt using OpenAI
-        response = openai.Completion.create(prompt=prompt)
-        return response.choices[0].text
+import smtplib
+from email.mime.text import MIMEText
 
 class EmailHandler:
-    def __init__(self, user_name: str):
-        self.user_name = user_name
+    def __init__(self, smtp_config):
+        self.server = smtp_config['server']
+        self.port = smtp_config['port']
+        self.username = smtp_config['username']
+        self.password = smtp_config['password']
 
-    def send_emails(self, text: str):
-        # Extract email details from text and send emails
-        pass
+    def handle_email(self, details):
+        # Create the email content
+        msg = MIMEText(details['body'])
+        msg['Subject'] = details['subject']
+        msg['From'] = self.username
+        msg['To'] = details['to']
 
-from googleapiclient.discovery import build
-import email
-import imaplib
+        try:
+            # Set up the server
+            server = smtplib.SMTP(host=self.server, port=self.port)
+            server.starttls()  # Upgrade the connection to a secure encrypted SSL/TLS connection
+            server.login(user=self.username, password=self.password)
+            
+            # Send the email
+            server.sendmail(from_addr=self.username, to_addrs=[details['to']], msg=msg.as_string())
+
+            # Log out and close the server connection
+            server.quit()
+            
+            return "Email sent successfully"
+        except Exception as e:
+            return f"Failed to send email: {str(e)}"
+
+# Usage
+# Initialize the EmailHandler with SMTP config
+email_handler = EmailHandler(smtp_config=CONFIG['email']['smtp'])
+
+# Sending an email
+response = email_handler.handle_email({
+    'to': 'recipient@example.com',
+    'subject': 'Test Email',
+    'body': 'This is a test email.',
+})
+print(response)
 
 class CalendarExporter:
-    def __init__(self, imap_server, email_credentials, google_credentials_path):
+    def __init__(self, imap_server, email_credentials, google_credentials_path, ms_credentials, apple_credentials):
         self.imap_server = imap_server
         self.email_credentials = email_credentials
-        self.service = build('calendar', 'v3', credentials=self.load_credentials(google_credentials_path))
+        self.google_service = build('calendar', 'v3', credentials=self.load_credentials(google_credentials_path))
+        self.ms_service = None  # Initialize Microsoft calendar service
+        self.apple_service = None  # Initialize Apple calendar service
+
+    def load_credentials(self, path):
+        # Load credentials from the path (Implement the logic to load and return credentials)
+        pass
+
+    def extract_event(self, email_message):
+        # Extract event details from the email message (Implement the logic)
+        pass
 
     def parse_and_export_events(self, email_ids):
         # Connect to IMAP server
@@ -278,25 +242,57 @@ class CalendarExporter:
 
             # Extract event details and add to Google Calendar
             event = self.extract_event(email_message)
-            self.service.events().insert(calendarId='primary', body=event).execute()
+            self.google_service.events().insert(calendarId='primary', body=event).execute()
 
-# Section 3: Chains, Parsing, Prompting, Databases, Selectors and Structure
+# New Classes for Document Handling
+class DocumentHandler:
+    def __init__(self, google_drive_config, onedrive_config, icloud_config):
+        self.google_drive_service = None  # Initialize Google Drive service with google_drive_config
+        self.onedrive_service = None  # Initialize OneDrive service with onedrive_config
+        self.icloud_service = None  # Initialize iCloud service with icloud_config
+
+    def read_document(self, platform, doc_id):
+        # Implement logic to read document based on the platform (Google Drive, OneDrive, iCloud) and document ID
+        if platform == "google_drive":
+            # Use Google Drive API to read the document
+            pass
+        elif platform == "onedrive":
+            # Use OneDrive API to read the document
+            pass
+        elif platform == "icloud":
+            # Use iCloud API to read the document
+            pass
+        else:
+            return "Unknown platform"
+
+    def create_and_share_document(self, platform, content, user_email):
+        # Implement logic to create and share a document based on the platform (Google Drive, OneDrive, iCloud)
+        if platform == "google_drive":
+            # Use Google Drive API to create and share the document with the user
+            pass
+        elif platform == "onedrive":
+            # Use OneDrive API to create and share the document with the user
+            pass
+        elif platform == "icloud":
+            # Use iCloud API to create and share the document with the user
+            pass
+        else:
+            return "Unknown platform"
+
+# Usage (You would use these in your main application logic, not here in the class definitions)
+# Initialize the handlers with appropriate configs
+# calendar_exporter = CalendarExporter(imap_server, email_credentials, google_credentials_path, ms_credentials, apple_credentials)
+# document_handler = DocumentHandler(google_drive_config, onedrive_config, icloud_config)
+
+
+# Section 3: Parsing, Selectors, Embeddings, Prompting, Vector Databases, Agents, Chains
 # Team Members: Aria [Systems Engineer], Affaan [Project Manager | Data Engineer], Haley [Base Code Engineer]
 
 # Prompting - Affaan [Project Manager | Data Engineer]
 
-import redis
-import json
-import re
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
 import requests
 from bs4 import BeautifulSoup
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-import numpy as np
-from numpy.linalg import norm
-import pandas as pd
-import openai
+
 
 def load_text(source_type, source):
     """
@@ -366,17 +362,17 @@ texts = split_text(text)
 
 # Now texts contain the split texts ready to be processed further
 from langchain.embeddings.openai import OpenAIEmbeddings
-import redis
-import json
+from config import CONFIG
 
-# Azure Redis Cache configuration (replace with your actual settings)
-REDIS_HOST = 'your-azure-redis-url'
-REDIS_PORT = 'your-azure-redis-port'
-REDIS_DB = 0
-REDIS_PASSWORD = 'your-azure-redis-password'
+# Azure Redis Cache configuration
+REDIS_HOST = CONFIG['azure_redis']['host']
+REDIS_PORT = CONFIG['azure_redis']['port']
+REDIS_DB = CONFIG['azure_redis']['db']
+REDIS_PASSWORD = CONFIG['azure_redis']['password']
 
 # Initialize Redis client
 redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, password=REDIS_PASSWORD)
+
 
 # Define the embeddings model using Langchain's OpenAIEmbeddings
 embeddings_model = OpenAIEmbeddings()
@@ -458,27 +454,18 @@ chat_template = ChatPromptTemplate.from_messages([
 
 # Examples for dynamic few-shot prompting
 examples = [
-    # Calendar Scheduling
-    "Schedule a meeting with {participants} on {date} at {time} in {location}.",
-    "Reschedule the meeting on {date} to {new_date} at {new_time}.",
-    "Cancel the meeting scheduled on {date}.",
-    
-    # Email Sending
+   
+    # Email Management
     "Draft an email to {recipient} with subject {subject} and body {body}.",
     "Send an email to {recipient} with subject {subject} and attachment {attachment_path}.",
     "Set up an auto-reply message with the text {message}.",
-    
-    # Slack Message Sending
-    "Send a Slack message to {channel_name} with the message {message_content}.",
-    "Create a Slack poll in {channel_name} with the question {question} and options {options}.",
-    "Schedule a Slack message to {recipient} on {date} at {time} with the message {message_content}.",
-    
-    # Trello Task Creating
-    "Create a Trello task at {board} with description {description}, title {title}, and tags {tags}.",
-    "Update Trello task {task_id} with new description {description}.",
-    "Add a comment to Trello task {task_id} with the message {message}.",
-    
-    # Document Generating/Saving
+   
+    # Calendar Management
+    "Schedule a meeting with {participants} on {date} at {time} in {location}.",
+    "Reschedule the meeting on {date} to {new_date} at {new_time}.",
+    "Cancel the meeting scheduled on {date}.",
+   
+    # Drive Management
     "Create a {document_type} document titled {title} with the following content {content}.",
     "Save the document titled {title} to {storage_service}.",
     "Share the document titled {title} with {recipient_email}.",
@@ -556,6 +543,21 @@ def parse_meeting_request(input_text):
         'location': location.group(1) if location else None,
     }
 
+def parse_email_draft_request(input_text):
+    recipient_pattern = r"email to ([\w\s,.@]+)"
+    subject_pattern = r"subject ([\w\s,.]+)"
+    body_pattern = r"body ([\w\s,.]+)"
+    
+    recipient = re.search(recipient_pattern, input_text)
+    subject = re.search(subject_pattern, input_text)
+    body = re.search(body_pattern, input_text)
+    
+    return {
+        'recipient': recipient.group(1) if recipient else None,
+        'subject': subject.group(1) if subject else None,
+        'body': body.group(1) if body else None,
+    }
+
 # Output Parser: Meeting Confirmation
 def format_meeting_confirmation(raw_response):
     confirmation = raw_response.replace("Generated response for:", "Meeting scheduled:")
@@ -574,6 +576,16 @@ def serialize_prompt(prompt, metadata=None):
     })
 
 # Function for Prompt Pipelining
+
+def invoke_llm(prompt):
+    # Set your OpenAI API key here
+    openai.api_key = "YOUR_OPENAI_API_KEY"
+    
+    # Invoke the OpenAI API to get the response
+    response = openai.Completion.create(prompt=prompt)
+    
+    return response.choices[0].text  # Return the generated text
+
 def process_prompt_pipeline(prompts, redis_storage):
     results = []
     # The Example Selector instance should be initialized with a predefined set of examples 
@@ -583,8 +595,7 @@ def process_prompt_pipeline(prompts, redis_storage):
         prompt_json = json.loads(prompt_data)
         prompt = prompt_json['prompt']
         metadata = prompt_json['metadata']
-        result = ""
-
+        
         # Step 2: Depending on the type of prompt, parse it to extract necessary details
         if metadata.get('type') == 'meeting_request':
             meeting_data = parse_meeting_request(prompt)
@@ -598,7 +609,7 @@ def process_prompt_pipeline(prompts, redis_storage):
         # Step 4: Generate a response using LLM
         response = invoke_llm(selected_example)
         
-               # Step 5: Format the raw response received from the LLM
+        # Step 5: Format the raw response received from the LLM
         if metadata.get('type') == 'meeting_request':
             response = format_meeting_confirmation(response)
         else:
@@ -607,14 +618,15 @@ def process_prompt_pipeline(prompts, redis_storage):
 
         # Store the result in Redis
         key = metadata.get('key')
-        redis_storage.store_result(key, response)  # Updated this line to store the response instead of result
+        redis_storage.store_result(key, response) 
 
         results.append({
-            'result': response,  # Updated this line to append the response instead of result
+            'result': response,  
             'metadata': metadata
         })
 
     return results
+
 
 # Usage
 prompts = [
@@ -623,8 +635,60 @@ prompts = [
 redis_storage = RedisResultsStorage()
 results = process_prompt_pipeline(prompts, redis_storage)
 
+    
+# Agents - Aria [Systems Engineer]
 
-# Chains - Aria [Systems Engineer], Haley [Base Code Engineer]
+class MeetingSchedulerAgent:
+    def __init__(self, meeting_scheduler):
+        self.meeting_scheduler = meeting_scheduler
+
+    def process(self, input_data, memory):
+        # Logic to schedule a meeting based on the input_data
+        # Here, invoke the relevant method from the meeting_scheduler instance with necessary parameters extracted from input_data
+        # For instance, if input_data contains details for scheduling a meeting, extract those details and invoke meeting_scheduler.schedule_meeting method
+        # Remember to update the 'memory' dictionary to store any important data that needs to be passed between different agents in a chain
+        
+        # Extract necessary details from input_data
+        # e.g., text = input_data.get("text")
+        
+        # Invoke the relevant method from meeting_scheduler
+        # e.g., self.meeting_scheduler.schedule_meeting(text)
+        
+        return {"status": "Meeting scheduled successfully"}  # Return appropriate response
+    
+class EmailHandlerAgent:
+    def __init__(self, email_handler):
+        self.email_handler = email_handler
+
+    def process(self, input_data, memory):
+        # Similar to the MeetingSchedulerAgent, extract the necessary details from input_data and invoke the relevant method from email_handler instance
+        # e.g., self.email_handler.handle_email(details)
+        
+        # Extract necessary details from input_data
+        # e.g., details = input_data.get("email_details")
+        
+        # Invoke the relevant method from email_handler
+        # e.g., response = self.email_handler.handle_email(details)
+        
+        return {"status": response}  # Return the response from email handler
+
+class CalendarExporterAgent:
+    def __init__(self, calendar_exporter):
+        self.calendar_exporter = calendar_exporter
+
+    def process(self, input_data, memory):
+        # Logic to manage calendar tasks. This could involve extracting events from emails and adding them to the user's calendar.
+        # e.g., self.calendar_exporter.parse_and_export_events(email_ids)
+        
+        # Extract necessary details from input_data
+        # e.g., email_ids = input_data.get("email_ids")
+        
+        # Invoke the relevant method from calendar_exporter
+        # e.g., self.calendar_exporter.parse_and_export_events(email_ids)
+        
+    return {"status": "Events exported successfully"}  # Return appropriate response
+
+# Chains - Aria [Systems Engineer]
 
 # Placeholder class for Chains
 class Chain:
@@ -638,10 +702,3 @@ class Chain:
             input_data = agent.process(input_data, self.memory)
         return input_data
     
-# Agents - Aria [Systems Engineer]
-
-# Placeholder class for Agents
-class Agent: 
-    def process(self, input_data, memory):
-        result = f"Processed by {self.__class__.__name__}: {input_data}"
-        return result
