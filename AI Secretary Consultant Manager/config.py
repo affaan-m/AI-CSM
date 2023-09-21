@@ -16,7 +16,7 @@ CONFIG = {
     },
     "openai": {
         "api_key": "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"
-    }
+    },
     "google_api": {
         "client_id": "35133980476-l14hfrntg9f96n2omvme09f58r98b0tn.apps.googleusercontent.com",
         "client_secret": "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"
