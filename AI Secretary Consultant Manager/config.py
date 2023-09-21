@@ -16,46 +16,16 @@ CONFIG = {
     },
     "openai": {
         "api_key": "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"
-    },
-    "email": {
-    "smtp": {
-        "server": "smtp.your-email-provider.com",
-        "port": 587,  # Commonly used port for SMTP
-        "username": "your-email-username",
-        "password": "your-email-password",
     }
-
-    },
     "google_api": {
-        "calendar": {
-            "credentials_path": "path/to/google/calendar/credentials.json",
-        },
-        "drive": {
-            "credentials_path": "path/to/google/drive/credentials.json",
-        }
+        "client_id": "35133980476-l14hfrntg9f96n2omvme09f58r98b0tn.apps.googleusercontent.com",
+        "client_secret": "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"
     },
     "microsoft_api": {
-        "calendar": {
-            "client_id": "your-client-id",
-            "client_secret": "your-client-secret",
-            "redirect_uri": "your-redirect-uri",
+            "client_id": "4ld8Q~KT5XMRFhzV2N~2WEAVNDF1~MZbCBdcHbNL",
+            "client_secret": "7018f836-4f2d-41e1-9a26-19f381ee9521",
+            "redirect_uri": "https://dcube.ai",
             "refresh_token": "your-refresh-token",
-        },
-        "onedrive": {
-            "client_id": "your-client-id",
-            "client_secret": "your-client-secret",
-            "redirect_uri": "your-redirect-uri",
-            "refresh_token": "your-refresh-token",
-        }
-    },
-    "apple_api": {
-        "calendar": {
-            "client_id": "your-client-id",
-            "client_secret": "your-client-secret",
-        },
-        "icloud_drive": {
-            "client_id": "your-client-id",
-            "client_secret": "your-client-secret",
         }
     },
 }
