@@ -17,6 +17,11 @@ import imaplib
 # Team Member: Haley [Base Code Engineer], Ru [API Engineer]
 
 # GPTPlugin - Ru [API Engineer]
+import numpy as np
+from sklearn.decomposition import TruncatedSVD
+from sklearn.preprocessing import Normalizer
+from sklearn.pipeline import make_pipeline
+
 
 class GPTPlugin:
     def __init__(self, config):
@@ -244,63 +249,118 @@ class CalendarExporter:
             event = self.extract_event(email_message)
             self.google_service.events().insert(calendarId='primary', body=event).execute()
 
-# New Classes for Document Handling
-class DocumentHandler:
-    def __init__(self, google_drive_config, onedrive_config, icloud_config):
-        self.google_drive_service = None  # Initialize Google Drive service with google_drive_config
-        self.onedrive_service = None  # Initialize OneDrive service with onedrive_config
-        self.icloud_service = None  # Initialize iCloud service with icloud_config
 
-    def read_document(self, platform, doc_id):
-        # Implement logic to read document based on the platform (Google Drive, OneDrive, iCloud) and document ID
-        if platform == "google_drive":
-            # Use Google Drive API to read the document
-            pass
-        elif platform == "onedrive":
-            # Use OneDrive API to read the document
-            pass
-        elif platform == "icloud":
-            # Use iCloud API to read the document
-            pass
-        else:
-            return "Unknown platform"
+class AdvancedDocumentRetrieval:
+    def __init__(self, documents):
+        self.documents = documents
+        self.vectorizer = TfidfVectorizer(stop_words='english', use_idf=True, smooth_idf=True)
+        self.doc_term_matrix = self.vectorizer.fit_transform(self.documents)
+        self.feature_names = self.vectorizer.get_feature_names_out()
 
-    def create_and_share_document(self, platform, content, user_email):
-        # Implement logic to create and share a document based on the platform (Google Drive, OneDrive, iCloud)
-        if platform == "google_drive":
-            # Use Google Drive API to create and share the document with the user
-            pass
-        elif platform == "onedrive":
-            # Use OneDrive API to create and share the document with the user
-            pass
-        elif platform == "icloud":
-            # Use iCloud API to create and share the document with the user
-            pass
-        else:
-            return "Unknown platform"
+    def sample_subspaces(self, prompt):
+        """
+        Samples subspaces based on the prompt to narrow down the search space for document retrieval.
+        """
+        prompt_vector = self.vectorizer.transform([prompt])
+        svd = TruncatedSVD(n_components=100)
+        normalizer = Normalizer(copy=False)
+        lsa = make_pipeline(svd, normalizer)
+        
+        
+        prompt_lsa = lsa.fit_transform(prompt_vector)
+        doc_term_matrix_lsa = lsa.transform(self.doc_term_matrix)
+        
+        similarities = cosine_similarity(prompt_lsa, doc_term_matrix_lsa)
+        return similarities
+
+    def retrieve_documents(self, prompt, top_n=5):
+        """
+        Retrieves top N similar documents based on the sampled subspaces and cosine similarity.
+        """
+        similarities = self.sample_subspaces(prompt)
+        sorted_indices = np.argsort(similarities[0])[::-1]
+        top_document_indices = sorted_indices[:top_n]
+        
+        return [(self.documents[i], similarities[0][i]) for i in top_document_indices]
+    class EnhancedDocumentRetrieval:
+    def __init__(self, documents, embeddings_model, langchain_rag):
+        self.documents = documents
+        self.embeddings_model = embeddings_model
+        self.langchain_rag = langchain_rag
+        self.vectorizer = TfidfVectorizer(stop_words='english', use_idf=True, smooth_idf=True)
+        self.doc_term_matrix = self.vectorizer.fit_transform(self.documents)
+        self.feature_names = self.vectorizer.get_feature_names_out()
+
+    def sample_subspaces(self, prompt):
+        """
+        Samples subspaces based on the prompt to narrow down the search space for document retrieval.
+        Uses embeddings to improve accuracy and reduce hallucinations.
+        """
+        prompt_embedding = self.embeddings_model.compute_embedding(prompt)
+        document_embeddings = [self.embeddings_model.compute_embedding(doc) for doc in self.documents]
+        
+        similarities = cosine_similarity([prompt_embedding], document_embeddings)
+        return similarities
+
+    def retrieve_documents(self, prompt, top_n=5):
+        """
+        Retrieves top N similar documents based on the sampled subspaces and cosine similarity.
+        """
+        similarities = self.sample_subspaces(prompt)
+        sorted_indices = np.argsort(similarities[0])[::-1]
+        top_document_indices = sorted_indices[:top_n]
+        
+        return [(self.documents[i], similarities[0][i]) for i in top_document_indices]
+
+    def parse_and_create_documents(self, prompt, top_n=5):
+        """
+        Parses and retrieves specific elements from sampled documents to create new documents.
+        Leverages LangChain for parsing and document generation.
+        """
+        top_documents = self.retrieve_documents(prompt, top_n)
+        new_documents = []
+        
+        for doc, _ in top_documents:
+            # Use LangChain RAG for parsing and generating new document segments
+            processed_input = self.langchain_rag.preprocess_input(doc)
+            new_doc_segment = self.langchain_rag.postprocess_output(processed_input)
+            new_documents.append(new_doc_segment)
+        
+        return new_documents
+
+# Example usage
+documents = ["Document 1 content here", "Document 2 content here", "Document 3 content here"]
+retrieval_system = AdvancedDocumentRetrieval(documents)
+prompt = "Legal document regarding intellectual property"
+top_documents = retrieval_system.retrieve_documents(prompt, top_n=3)
+for doc, similarity in top_documents:
+    print(f"Document: {doc}, Similarity: {similarity}")
 
 # Usage (You would use these in your main application logic, not here in the class definitions)
 # Initialize the handlers with appropriate configs
 # calendar_exporter = CalendarExporter(imap_server, email_credentials, google_credentials_path, ms_credentials, apple_credentials)
 # document_handler = DocumentHandler(google_drive_config, onedrive_config, icloud_config)
 
-
-# Section 3: Parsing, Selectors, Embeddings, Prompting, Vector Databases, Agents, Chains
-# Team Members: Aria [Systems Engineer], Affaan [Project Manager | Data Engineer], Haley [Base Code Engineer]
-
-# Prompting - Affaan [Project Manager | Data Engineer]
-
 import requests
 from bs4 import BeautifulSoup
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseDownload
+import io
+import onedrivesdk
+from sqlalchemy import create_engine
+import pandas as pd
+import numpy as np
+from vector_database import VectorDatabase
 
-
-def load_text(source_type, source):
+def load_text(source_type, source, credentials=None):
     """
-    Load text data from various sources: URL, direct upload, or Google Drive.
+    Load text data from various sources: URL, direct upload, Google Drive, OneDrive, direct text, or SQL database.
 
     Args:
-    source_type (str): The type of the source ('url', 'file', 'gdrive', 'direct_text')
-    source (str): The source input. Depending on the source_type, it could be a URL, file path, Google Drive ID, or direct text.
+    source_type (str): The type of the source ('url', 'file', 'gdrive', 'onedrive', 'direct_text', 'sql')
+    source (str): The source input. Depending on the source_type, it could be a URL, file path, Google Drive ID, OneDrive ID, direct text, or SQL query.
+    credentials (dict, optional): Credentials required for Google Drive, OneDrive, or SQL database access.
 
     Returns:
     str: The loaded text data.
@@ -320,17 +380,74 @@ def load_text(source_type, source):
             text = file.read()
 
     elif source_type == 'gdrive':
-        # Load text from Google Drive (assuming the file is publicly accessible)
-        # The source should be the file ID
-        gdrive_url = f"https://drive.google.com/uc?export=download&id={source}"
-        response = requests.get(gdrive_url)
-        text = response.text
+        # Load text from Google Drive
+        creds = Credentials(token=credentials['token'],
+                            refresh_token=credentials['refresh_token'],
+                            token_uri=credentials['token_uri'],
+                            client_id=credentials['client_id'],
+                            client_secret=credentials['client_secret'],
+                            scopes=credentials['scopes'])
+        service = build('drive', 'v3', credentials=creds)
+        request = service.files().get_media(fileId=source)
+        fh = io.BytesIO()
+        downloader = MediaIoBaseDownload(fh, request)
+        done = False
+        while done is False:
+            status, done = downloader.next_chunk()
+        text = fh.getvalue().decode()
+
+    elif source_type == 'onedrive':
+        # Load text from OneDrive
+        http_provider = onedrivesdk.HttpProvider()
+        auth_provider = onedrivesdk.AuthProvider(http_provider=http_provider,
+                                                 client_id=credentials['client_id'],
+                                                 scopes=credentials['scopes'])
+        auth_provider.authenticate(code=credentials['code'], redirect_uri=credentials['redirect_uri'], client_secret=credentials['client_secret'])
+        client = onedrivesdk.OneDriveClient('https://api.onedrive.com/v1.0/', auth_provider, http_provider)
+        downloaded_file = client.item(drive='me', id=source).content.download()
+        text = downloaded_file.read().decode()
 
     elif source_type == 'direct_text':
         # Direct text input
         text = source
 
+    elif source_type == 'sql':
+        # Load text from SQL database
+        engine = create_engine(credentials['connection_string'])
+        result = pd.read_sql(source, engine)
+        text = ' '.join(result.iloc[:,0].astype(str))
+
     return text
+
+# Vector Database Pipeline Setup
+def setup_vector_database_pipeline(texts, vector_db_config):
+    """
+    Setup and populate a vector database with text embeddings for efficient similarity search.
+
+    Args:
+    texts (list of str): Texts to be processed and stored in the vector database.
+    vector_db_config (dict): Configuration for the vector database connection and operations.
+
+    Returns:
+    None
+    """
+    vector_db = VectorDatabase(vector_db_config['host'], vector_db_config['port'])
+    embeddings = [compute_embedding(text) for text in texts]  # Assuming compute_embedding is a function that computes text embeddings
+    for embedding in embeddings:
+        vector_db.insert(embedding)
+
+def compute_embedding(text):
+    """
+    Compute the embedding of a given text. Placeholder for an actual embedding computation function.
+
+    Args:
+    text (str): The text to compute the embedding for.
+
+    Returns:
+    np.array: The computed embedding.
+    """
+    # Placeholder logic for embedding computation
+    return np.random.rand(512)  # Assuming the embedding size is 512
 
 
 def split_text(text):
@@ -688,17 +805,24 @@ class CalendarExporterAgent:
         
     return {"status": "Events exported successfully"}  # Return appropriate response
 
-# Chains - Aria [Systems Engineer]
 
-# Placeholder class for Chains
-class Chain:
+# Enhanced Chain class for Paralegal Feature using LangChain RAG Framework
+class ParalegalChain:
     def __init__(self, agents, memory=None, callbacks=None):
         self.agents = agents
         self.memory = memory or {}
         self.callbacks = callbacks or {}
+        self.langchain_rag = LangChainRAGFramework()
 
     def execute(self, input_data):
+        # Preprocess input_data using LangChain Expression Language
+        processed_input = self.langchain_rag.preprocess_input(input_data)
+        
+        # Execute each agent in the chain with the processed input
         for agent in self.agents:
-            input_data = agent.process(input_data, self.memory)
-        return input_data
-    
+            processed_input = agent.process(processed_input, self.memory)
+        
+        # Postprocess the output using LangChain to generate a new document
+        final_output = self.langchain_rag.postprocess_output(processed_input, self.memory)
+        
+        return final_output
